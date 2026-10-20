@@ -1,0 +1,24 @@
+# Python / Node
+__pycache__/
+*.pyc
+node_modules/
+package-lock.json
+
+# Private material: never publish (Canva license, commercial fonts)
+Templates/
+template-library/
+library/
+*.pptx
+*.potx
+
+# Build and render output
+out/
+render/
+preview/
+*.pdf
+*.zip
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

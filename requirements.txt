@@ -1,0 +1,6 @@
+# Python dependencies of pro-pptx-studio (pip install -r requirements.txt)
+python-pptx>=1.0     # MIT
+lxml>=5.0            # BSD-3-Clause
+fonttools>=4.50      # MIT
+Pillow>=10.0         # MIT-CMU (HPND)
+numpy>=1.26          # BSD-3-Clause

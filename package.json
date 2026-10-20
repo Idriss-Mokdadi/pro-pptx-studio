@@ -1,0 +1,22 @@
+{
+  "name": "pro-pptx-studio",
+  "version": "5.0.0",
+  "description": "Agent skill for Claude: designer-quality PowerPoint decks built on your own templates, plus a 59-style generator and banners",
+  "license": "MIT",
+  "author": "Mohamed Idriss Mokdadi",
+  "private": true,
+  "scripts": {
+    "demo": "node examples/demo.js nebula lively"
+  },
+  "dependencies": {
+    "pptxgenjs": "^4.0.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-icons": "^5.0.0",
+    "sharp": ">=0.33.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Idriss-Mokdadi/pro-pptx-studio.git"
+  }
+}

@@ -1,0 +1,41 @@
+{
+ "lib": "LIB",
+ "base": "brown-and-beige-modern-minimalist-thesis-defense",
+ "out": "./depth-cover.pptx",
+ "recolor": {
+  "to": "#19C3FF"
+ },
+ "motion": "auto",
+ "slides": [
+  {
+   "use": "#1",
+   "text": {
+    "TextBox 13": "SENTINEL",
+    "TextBox 12": "CORE 5G",
+    "TextBox 22": "ENET'COM \u00b7 2026",
+    "TextBox 23": "CONTEXT",
+    "TextBox 24": "SOLUTION",
+    "TextBox 25": "RESULTS",
+    "TextBox 26": "DEMO",
+    "TextBox 27": "PRESENTED BY [NAMES]"
+   },
+   "add": [
+    {
+     "kit": "depth",
+     "cutout": "./cutouts/futuristic-engineering-c-01.png",
+     "box": [
+      0.735,
+      0.4,
+      0.14,
+      0.5
+     ],
+     "glow": true
+    }
+   ],
+   "notes": "Cover with the depth effect: a real chrome render overlaps the title letters.",
+   "remove": [
+    "TextBox 21"
+   ]
+  }
+ ]
+}
