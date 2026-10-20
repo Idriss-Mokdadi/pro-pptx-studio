@@ -273,7 +273,11 @@ def style_chart(sl, sh, c):
 for op in P.get('remove', []):
     sl = S(op['slide'])
     for nm in op['shapes']:
-        e = find(sl, nm)._element; e.getparent().remove(e)
+        sh = next((s for s in sl.shapes if s.name == nm), None)
+        if sh is None:
+            print(f'warning: remove: no shape {nm!r} on slide {op["slide"]}', file=sys.stderr)
+            continue
+        sh._element.getparent().remove(sh._element)
 for op in P.get('move', []):
     sh = find(S(op['slide']), op['shape']); b = op['box']
     sh.left, sh.top = X(b[0]), Y(b[1])
@@ -320,10 +324,62 @@ N = P.get('numbers', {})         # slide numbers: on by default, counting starts
 if N is not False:
     first, n0, skip = N.get('start_slide', 2), N.get('start_at', 1), set(N.get('skip', []))
     bx = N.get('box', [0.925, 0.925, 0.055, 0.045])
+    total = len(prs.slides) - first + n0
+
+    def own_number(s):              # the template's own page number: reuse it instead of adding a second one
+        if s.name == 'slide-number-tpl':
+            return True
+        if s.is_placeholder and s.placeholder_format.type is not None and int(s.placeholder_format.type) == 13:
+            return True
+        if not s.has_text_frame or s.name.startswith(('card-', 'kpi', 'node-', 'logo', 'chart', 'slide-number')):
+            return False
+        if s._element.findall('.//' + qn('a:fld')) and any(x.get('type') == 'slidenum' for x in s._element.iter(qn('a:fld'))):
+            return True
+        tx = s.text_frame.text.strip()
+        if not re.fullmatch(r'\d{1,3}', tx) or s.width * s.height > 0.01 * W * H:
+            return False
+        cx, cy = (s.left + s.width / 2) / W, (s.top + s.height / 2) / H
+        return cy > 0.82 or cy < 0.12 or cx > 0.92 or cx < 0.08
+
+    def set_text(s, value):
+        for fld in list(s._element.iter(qn('a:fld'))):      # a slide-number field would ignore our numbering
+            r = etree.Element(qn('a:r'))
+            for c in list(fld):
+                if c.tag in (qn('a:rPr'), qn('a:t')):
+                    r.append(c)
+            if r.find(qn('a:t')) is None:
+                etree.SubElement(r, qn('a:t'))
+            fld.getparent().replace(fld, r)
+        runs = [r for p in s.text_frame.paragraphs for r in p.runs]
+        if runs:
+            runs[0].text = value
+            for r in runs[1:]:
+                r.text = ''
+        else:
+            s.text_frame.text = value
+        s.name = 'slide-number-tpl'
+
+    found = {i: [s for s in sl.shapes if own_number(s)] for i, sl in enumerate(prs.slides, 1)}
+    allf = [s for ss in found.values() for s in ss]
+    proto = next((s for s in allf if s.text_frame.text.strip()), allf[0] if allf else None)
+    pad = 0
+    if proto is not None:
+        t0 = proto.text_frame.text.strip()
+        pad = len(t0) if t0.startswith('0') and len(t0) > 1 else int(N.get('pad', 0))
     for i, sl in enumerate(prs.slides, 1):
         for sh in [s for s in sl.shapes if s.name == 'slide-number']:
             sh._element.getparent().remove(sh._element)
-        if i < first or i in skip:
+        numbered = i >= first and i not in skip
+        value = str(i - first + n0).zfill(pad) if numbered else ''
+        if proto is not None:                     # template style: rewrite its numbers, copy one where missing
+            if not found[i] and numbered:
+                el = copy.deepcopy(proto._element)
+                sl.shapes._spTree.append(el)
+                found[i] = [sl.shapes[-1]]
+            for s in found[i]:
+                set_text(s, value)
+            continue
+        if not numbered:
             continue
         b = list(bx)
         for s in sl.shapes:          # step above a logo chip or added content sitting in the corner
@@ -331,7 +387,20 @@ if N is not False:
                 sx, sy, sw, shh = s.left / W, s.top / H, s.width / W, s.height / H
                 if sx < b[0] + b[2] and sx + sw > b[0] and sy < b[1] + b[3] and sy + shh > b[1]:
                     b[1] = sy - b[3] - 0.01
-        text(sl, b, N.get('format', '{n}').format(n=i - first + n0, total=len(prs.slides) - first + n0),
+        text(sl, b, N.get('format', '{n}').format(n=i - first + n0, total=total),
              N.get('size', 18), N.get('color', 'text'), N.get('font', 'display'), N.get('bold', True), 'r', 'm', name='slide-number')
+C = P.get('canvas')               # banners: crop the 16:9 slide to a wide strip after the layout is placed
+if C:
+    aspect = float(C.get('aspect', 3))
+    if aspect <= 1:
+        sys.exit('canvas: a banner is always wider than tall (aspect > 1)')
+    newW, newH = (W, int(W / aspect)) if aspect >= W / H else (int(H * aspect), H)
+    dx, dy = int(C.get('left', 0) * W), int(C.get('top', 0) * H)
+    if dy + newH > H + 1 or dx + newW > W + 1:
+        sys.exit('canvas: the crop band runs past the slide (lower "top" or "left")')
+    for sl in prs.slides:
+        for sh in sl.shapes:
+            sh.left, sh.top = sh.left - dx, sh.top - dy
+    prs.slide_width, prs.slide_height = newW, newH
 prs.save(out)
 print(json.dumps({'polished': out, 'ops': {k: len(v) for k, v in P.items() if isinstance(v, list)}}))

@@ -1,8 +1,16 @@
+<p align="center"><img src="docs/banner.png" alt="pro-pptx-studio: designer-quality PowerPoint decks built on your own templates" width="100%"></p>
+
 # pro-pptx-studio
 
 An agent skill for Claude that builds PowerPoint (.pptx) decks that look designer-made. Instead of drawing slides from code, it builds on **your own templates** (Canva exports, SlidesCarnival decks and similar) and keeps their backgrounds, photos and fonts. It then fits your content, adds charts, KPI tiles, code windows, diagrams, logos, Morph transitions and slide numbers, and checks the result visually before delivering it.
 
 Current version: **v5** (October 2026).
+
+## Example
+
+A cover built by the skill: a thesis-defense template recolored to cyan, with a chrome object cut out from another template and placed in front of the title.
+
+<p align="center"><img src="docs/sentinelcore-cover.jpg" alt="SentinelCore 5G cover built with pro-pptx-studio" width="80%"></p>
 
 ## Features
 
@@ -83,9 +91,13 @@ references/         detailed guides (template mode, storytelling, taste, styles,
 scripts/            Python and Node tools (library, build, polish, render, generator)
 assets/             fonts, 3D objects and styles, packed in bundle.tar.xz (unpacked on first use)
 examples/           example specs and placeholder images
+docs/               banner and example image for this README (the banner itself was built with the skill)
 ```
 
 ## Licenses
+
+The banner was built with the skill on a SlidesCarnival template (CC BY 4.0, slidescarnival.com).
+
 
 - **Code:** MIT (see `LICENSE`).
 - **Fonts:** SIL Open Font License 1.1.
@@ -96,7 +108,7 @@ Details are in `THIRD_PARTY.md`. Templates you use keep their own licenses. Canv
 
 ## Changelog
 
-- **v5** (October 2026): automatic slide numbering starting at the table of contents (`polish.numbers`, on by default, moves above logo chips); library kept in one folder.
+- **v5** (October 2026): automatic slide numbering starting at the table of contents (`polish.numbers`, on by default, moves above logo chips); library kept in one folder; banners are always wide (`polish.canvas` crops a template slide to 3:1 or 2:1); reuses a template's own page numbers (restyled to start at the table of contents) instead of adding a second set.
 - **v4** (October 2026): house rules from the internship-defense feedback, a default jury-defense outline, the polish pass, fact-checking of AI-made summaries, and a speech plus jury Q&A at delivery.
 - **v3**: template mode, cover preview, slide mixing, depth covers.
 - **v2**: generator with 59 styles, banners.

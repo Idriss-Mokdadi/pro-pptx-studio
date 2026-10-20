@@ -1,5 +1,7 @@
 # Banners
 
+A banner is always wider than tall. Prefer template mode (SKILL.md, Banners: build on a library template, crop with `polish.canvas`); this generator is the fallback. Its portrait sizes below are for posters and stories, not banners.
+
 ```js
 const { Banner, SIZES } = require(SKILL_DIR + "/scripts/banner.js");
 await new Banner({
