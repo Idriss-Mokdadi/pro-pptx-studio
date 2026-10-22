@@ -2,10 +2,10 @@
 //
 //   const { Banner, SIZES } = require("<skill>/scripts/banner.js");
 //   const b = new Banner({ style: "nebula", size: "linkedin-post", layout: "event",
-//     kicker: "IEEE IES/PES ENET'Com SBJC", title: "ElectroSpark 2.0", subtitle: "Hackathon & talks on AI for the grid",
-//     details: [{ icon: "calendar", text: "12 Nov 2026" }, { icon: "map", text: "ENET'Com, Sfax" }],
-//     cta: "Register now", logos: ["ieee.png"], obj: "high-voltage" });
-//   await b.save("electrospark-linkedin");   // writes .pptx (editable), .png (exact pixels), .pdf
+//     kicker: "Student Club", title: "Tech Day 2026", subtitle: "Talks and a hackathon",
+//     details: [{ icon: "calendar", text: "[date]" }, { icon: "map", text: "[venue]" }],
+//     cta: "Register now", logos: ["logo.png"], obj: "high-voltage" });
+//   await b.save("techday-linkedin");   // writes .pptx (editable), .png (exact pixels), .pdf
 //
 // layouts: event | webinar | announcement | achievement | quote | profile (LinkedIn banner) | countdown
 const fs = require("fs");

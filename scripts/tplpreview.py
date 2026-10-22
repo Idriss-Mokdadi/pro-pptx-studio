@@ -8,7 +8,9 @@ brief.json: {"title": "...", "subtitle": "...", "meta": ["Presented by ...", "Ju
              "templates": [optional ids], "color": "#00FF88" (optional recolor variant),
              "lib": optional library path, "mode": "dark"|"light"}
 Writes outdir/covers.jpg (letters A, B, ...) and outdir/choices.json. For every template it renders
-the cover as designed; when "theme" is set it also renders one variant with the theme fonts.
+the cover as designed; when "theme" is set it also renders one variant with the theme fonts. Next
+to each cover: the template's plan slide and its best content slide (from the library renders, no
+extra build), and how many content slides have their title at the top.
 """
 import concurrent.futures as cf, json, os, re, subprocess, sys
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -45,7 +47,7 @@ def cover_plan(meta, brief, lib=None, tid=None):
         titles = [max(tops, key=lambda t: t['size'])]
     rest = [t for t in tops if t not in titles]
     text, remove = {}, []
-    words = brief['title'].split()
+    words = brief['title'].split(' ')
     same_look = False
     if len(titles) >= 2 and len(words) > 4 and lib:
         cols = _colors(lib, tid, [t['name'] for t in titles[:2]])
@@ -77,6 +79,30 @@ def cover_plan(meta, brief, lib=None, tid=None):
         else:
             remove.append(t['name'])
     return text, remove
+
+
+CONTENT = {'text', 'list', 'two-col', 'cards', 'bento', 'stats', 'kpi', 'steps', 'process', 'timeline', 'chart', 'table',
+           'image-text', 'big-number', 'infographic', 'architecture', 'mockup'}
+
+
+def strip_slides(meta):
+    """The template's plan slide and its best content slide (title at the top, calm background), plus
+    how many content slides have their title at the top: shown next to the cover so the user judges
+    the whole design, not only the cover."""
+    H = meta['size_emu'][1]
+    role = lambda s_: s_.get('role_override') or s_['role']
+    plan = next((s_ for s_ in meta['slides'] if role(s_) == 'agenda'), None)
+    best, ready = None, 0
+    for s_ in meta['slides'][1:-1]:
+        if role(s_) not in CONTENT:
+            continue
+        ts = [t for t in s_['texts'] if t['top'] and t['kind'] == 'title' and t.get('box')]
+        top = bool(ts) and min(t['box'][1] for t in ts) < 0.3 * H
+        ready += top
+        sc = 2 * top + (not s_.get('has_background_image')) + 0.5 * (s_['counts']['photos'] == 0)
+        if best is None or sc > best[0]:
+            best = (sc, s_)
+    return plan, best[1] if best else None, ready
 
 
 def render_one(pptx, outdir):
@@ -134,7 +160,7 @@ def main():
             print(json.dumps({'template': tid, 'variant': label, 'error': repr(e)}))
     with cf.ThreadPoolExecutor(3) as ex:
         imgs = list(ex.map(lambda r: render_one(r[3], r[3][:-5] + '-r'), results))
-    W = 520
+    W, TW = 520, 260
     tiles = []
     choices = {}
     for k, ((tid, label, ft, path), img) in enumerate(zip(results, imgs)):
@@ -144,7 +170,8 @@ def main():
         choices[letter] = {'template': tid, 'fonts': ft, 'variant': label, 'pptx': path}
         im = Image.open(img).convert('RGB')
         im = im.resize((W, int(W * im.height / im.width)))
-        t = Image.new('RGB', (W, im.height + 34), (18, 18, 22))
+        th_h = (im.height - 4) // 2
+        t = Image.new('RGB', (W + 4 + TW, im.height + 34), (18, 18, 22))
         t.paste(im, (0, 0))
         d = ImageDraw.Draw(t)
         try:
@@ -152,15 +179,27 @@ def main():
             fs = ImageFont.truetype(os.path.join(F.SKILL_FONTS, 'Inter', 'Inter-Regular.ttf'), 13)
         except Exception:
             fnt = fs = None
+        meta = json.load(open(os.path.join(lib, tid, 'meta.json')))
+        plan, content, ready = strip_slides(meta)
+        for k_, (s_, cap) in enumerate(((plan, 'plan'), (content, 'content'))):
+            y0 = k_ * (th_h + 4)
+            f_ = os.path.join(lib, tid, s_['thumb']) if s_ and s_.get('thumb') else None
+            if f_ and os.path.exists(f_):
+                t.paste(Image.open(f_).convert('RGB').resize((TW, th_h)), (W + 4, y0))
+                d.rectangle([W + 4, y0, W + 4 + 8 + 7 * len(cap), y0 + 18], fill=(0, 0, 0))
+                d.text((W + 8, y0 + 2), cap, fill=(255, 220, 60), font=fs)
+            else:
+                d.text((W + 14, y0 + th_h // 2 - 8), ('no plan slide: cards are drawn' if cap == 'plan' else 'no content slide'), fill=(160, 160, 170), font=fs)
         d.text((8, im.height + 7), letter, fill=(255, 220, 60), font=fnt)
-        d.text((34, im.height + 10), ('%s · %s' % (tid, label))[:70], fill=(220, 220, 225), font=fs)
+        d.text((34, im.height + 10), ('%s · %s · %d content slides with the title on top' % (tid, label, ready))[:110], fill=(220, 220, 225), font=fs)
         tiles.append(t)
-    cols = 2 if brief.get('theme') else 3
+    cols = 2
     h = max(t.height for t in tiles)
+    tw = max(t.width for t in tiles)
     rows = (len(tiles) + cols - 1) // cols
-    sheet = Image.new('RGB', (cols * W + (cols + 1) * 10, rows * h + (rows + 1) * 10), (60, 60, 66))
+    sheet = Image.new('RGB', (cols * tw + (cols + 1) * 10, rows * h + (rows + 1) * 10), (60, 60, 66))
     for i, t in enumerate(tiles):
-        sheet.paste(t, (10 + (i % cols) * (W + 10), 10 + (i // cols) * (h + 10)))
+        sheet.paste(t, (10 + (i % cols) * (tw + 10), 10 + (i // cols) * (h + 10)))
     sheet.save(os.path.join(out, 'covers.jpg'), quality=86)
     json.dump(choices, open(os.path.join(out, 'choices.json'), 'w'), indent=1)
     print(json.dumps({'sheet': os.path.join(out, 'covers.jpg'), 'choices': {k: '%s (%s)' % (v['template'], v['variant']) for k, v in choices.items()}}, indent=1))

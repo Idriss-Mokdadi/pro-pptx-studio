@@ -4,3 +4,5 @@ lxml>=5.0            # BSD-3-Clause
 fonttools>=4.50      # MIT
 Pillow>=10.0         # MIT-CMU (HPND)
 numpy>=1.26          # BSD-3-Clause
+Pygments>=2.15   # BSD-2-Clause (code window colors)
+qrcode>=7.4      # BSD (QR code kit)

@@ -33,7 +33,7 @@ const RECIPES = {
     const g = o.glows || [{ x: 0.12, y: 0.2, rx: 0.22, c: p.primary, o: 0.75 }, { x: 0.9, y: 0.82, rx: 0.26, c: p.accent, o: 0.65 }, { x: 0.62, y: 0.05, rx: 0.14, c: p.accent2 || p.primary, o: 0.45 }, { x: 0.35, y: 1.0, rx: 0.16, c: p.accent2 || p.accent, o: 0.35 }];
     return base(p, w, H, o) + `<defs>${blur("bl", w * 0.06)}</defs>` + blobs(g, w, H);
   },
-  // light base with soft blurred color clouds (Aero-Sanitize look)
+  // light base with soft blurred color clouds (light competition-deck look)
   meshlight(p, w, H, o) {
     const g = o.glows || [{ x: 1.0, y: -0.02, rx: 0.22, ry: 0.2, c: p.accent, o: 0.95 }, { x: -0.02, y: 1.02, rx: 0.2, ry: 0.18, c: p.accent, o: 0.9 }, { x: 0.12, y: 0.16, rx: 0.3, ry: 0.11, c: p.primary, o: 0.6 }, { x: 0.9, y: 0.92, rx: 0.3, ry: 0.12, c: p.primary, o: 0.65 }, { x: 0.62, y: 0.42, rx: 0.16, ry: 0.06, c: p.primary, o: 0.18 }];
     return base(p, w, H, o) + `<defs>${blur("bl", w * 0.05)}</defs>` + blobs(g, w, H);

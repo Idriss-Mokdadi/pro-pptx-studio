@@ -11,7 +11,7 @@ const deck = new Deck({
   title: "Project name",
   topic: "keywords for the 3D hero object",
   footer: "Project name · Event 2026",
-  logos: [],                // e.g. ["logos/enetcom.png", "logos/ieee.png"]
+  logos: [],                // e.g. ["logos/school.png", "logos/company.png"]
 });
 
 deck.cover({ kicker: "Event · 2026", title: "Project name", subtitle: "What it is and how it works, in one line", meta: ["Presented by …", "Supervised by …", "Month 2026"], notes: "Introduce the team and the problem in one sentence." });

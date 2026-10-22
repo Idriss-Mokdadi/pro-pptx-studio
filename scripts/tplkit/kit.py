@@ -4,7 +4,7 @@ Every component takes a box (fractions of the slide, [x, y, w, h], or EMU when a
 and a theme derived from the template (fonts, colors), so generated parts look like the
 designer's own. Components: chart, kpi, table, code, bullets, text, image (with glow),
 depth (cut-out object in front of the title), mockup (phone / laptop / browser), timeline,
-icons, credit."""
+qr (scannable link), icons, credit."""
 import io, math, os, re
 from lxml import etree
 from PIL import Image, ImageDraw, ImageFilter
@@ -308,14 +308,83 @@ def table(prs, slide, th, box, rows, header=True, name='table', col_widths=None,
     return gf
 
 
-KW = {
+KW = {   # fallback when Pygments is not installed
     'python': r'\b(?:def|class|return|if|elif|else|for|while|in|import|from|as|with|try|except|finally|raise|lambda|yield|not|and|or|is|None|True|False|async|await|pass|break|continue)\b',
     'js': r'\b(?:function|const|let|var|return|if|else|for|while|import|from|export|class|new|async|await|try|catch|throw|null|true|false|this)\b',
     'c': r'\b(?:int|void|char|float|double|return|if|else|for|while|struct|include|define|static|const|unsigned|uint8_t|uint16_t|uint32_t|bool|true|false)\b',
 }
+LANG_ALIAS = {'terminal': 'console', 'shell': 'console', 'cmd': 'console', 'sh': 'bash', 'tf': 'terraform', 'hcl': 'terraform',
+              'docker': 'docker', 'dockerfile': 'docker', 'yml': 'yaml', 'k8s': 'yaml', 'ino': 'arduino', 'c++': 'cpp',
+              'js': 'javascript', 'ts': 'typescript', 'py': 'python', 'matlab': 'matlab', 'octave': 'octave'}
+DEFAULT_FILE = {'python': 'main.py', 'javascript': 'app.js', 'typescript': 'app.ts', 'c': 'main.c', 'cpp': 'main.cpp',
+                'arduino': 'sketch.ino', 'console': 'terminal', 'bash': 'script.sh', 'terraform': 'main.tf', 'yaml': 'config.yaml',
+                'json': 'data.json', 'docker': 'Dockerfile', 'sql': 'query.sql', 'kotlin': 'Main.kt', 'java': 'Main.java',
+                'matlab': 'script.m', 'go': 'main.go', 'rust': 'main.rs', 'html': 'index.html', 'css': 'style.css'}
 
 
-def code(prs, slide, th, box, src, lang='python', filename='main.py', highlight=(), name='code', font=None, size=None):
+def _palette(th):
+    if th.dark:
+        return {'kw': th.accent2, 'str': 'F2C46D', 'num': 'F78C6C', 'com': th.muted, 'fn': '82AAFF', 'cls': 'C792EA',
+                'op': '89DDFF', 'prompt': th.accent, 'out': 'A9B4C8', 'tag': 'FF7AB2', 'attr': 'FFCB6B', 'txt': 'E6EDF3'}
+    return {'kw': th.accent, 'str': 'B45309', 'num': 'C2410C', 'com': '6B7280', 'fn': '1D4ED8', 'cls': '7C3AED',
+            'op': '0E7490', 'prompt': th.accent, 'out': '4B5563', 'tag': 'BE185D', 'attr': '92400E', 'txt': '1F2328'}
+
+
+def code_lines(src, lang, th):
+    """[[(text, color), ...] per line]: syntax colors from Pygments (hundreds of languages, BSD-2-Clause)
+    for lang = a language name, 'terminal' for commands with a $ prompt, or 'auto'."""
+    pal = _palette(th)
+    try:
+        from pygments import lex
+        from pygments.lexers import get_lexer_by_name, guess_lexer
+        from pygments.token import Token
+        key = LANG_ALIAS.get((lang or 'auto').lower(), (lang or 'auto').lower())
+        try:
+            lexer = guess_lexer(src) if key == 'auto' else get_lexer_by_name(key)
+        except Exception:
+            lexer = get_lexer_by_name('text')
+        lexer.stripnl = False
+
+        def color(tt):
+            for t, c in ((Token.Comment, 'com'), (Token.Generic.Prompt, 'prompt'), (Token.Generic.Output, 'out'),
+                         (Token.Literal.String, 'str'), (Token.Literal.Number, 'num'), (Token.Keyword, 'kw'),
+                         (Token.Name.Function, 'fn'), (Token.Name.Class, 'cls'), (Token.Name.Builtin, 'cls'),
+                         (Token.Name.Decorator, 'attr'), (Token.Name.Tag, 'tag'), (Token.Name.Attribute, 'attr'),
+                         (Token.Name.Variable, 'attr'), (Token.Operator.Word, 'kw'), (Token.Operator, 'op'), (Token.Punctuation, 'op')):
+                if tt in t:
+                    return pal[c]
+            return pal['txt']
+        lines, cur = [], []
+        for tt, val in lex(src.expandtabs(4), lexer):
+            for k, part in enumerate(val.split('\n')):
+                if k:
+                    lines.append(cur)
+                    cur = []
+                if part:
+                    cur.append((part, color(tt)))
+        lines.append(cur)
+        n = len(src.split('\n'))
+        return lines[:n] + [[] for _ in range(n - len(lines))]
+    except ImportError:
+        kwre = KW.get(lang, KW['python'])
+        kw = re.compile(kwre)
+        out = []
+        for l in src.expandtabs(4).split('\n'):
+            runs = []
+            for t in re.split(r'(#.*$|//.*$|"[^"]*"|\'[^\']*\'|\b\d+\b|' + kwre + r')', l):
+                if not t:
+                    continue
+                c = (pal['com'] if t.startswith(('#', '//')) else pal['str'] if t[0] in '"\'' else
+                     pal['num'] if re.fullmatch(r'\d+', t) else pal['kw'] if kw.fullmatch(t) else pal['txt'])
+                runs.append((t, c))
+            out.append(runs)
+        return out
+
+
+def code(prs, slide, th, box, src, lang='python', filename=None, highlight=(), name='code', font=None, size=None):
+    """Editor-style code window. lang: any language Pygments knows (python, c, cpp, arduino, java, kotlin,
+    javascript, yaml, json, terraform, docker, sql, matlab, bash...), 'terminal' for commands with a
+    $ prompt and their output, or 'auto'. highlight: line numbers that get a band behind them."""
     x, y, w, h = box_emu(prs, box)
     win = panel(slide, th, x, y, w, h, name=name + '-window', alpha=th.surface_alpha + 6 if th.dark else 85, fill=('0B0F17' if th.dark else 'FFFFFF'))
     bar_h = int(h * 0.09)
@@ -324,33 +393,18 @@ def code(prs, slide, th, box, src, lang='python', filename='main.py', highlight=
         solid(d.fill, c)
         line(d, None)
     mono = font or th.mono
+    key = LANG_ALIAS.get((lang or '').lower(), (lang or '').lower())
+    filename = filename or DEFAULT_FILE.get(key, key or 'code')
     textbox(slide, x + int(bar_h * 2.4), y + int(bar_h * 0.22), w - int(bar_h * 3), int(bar_h * 0.6), filename, mono, 12, th.muted, name=name + '-file', autoshrink=False)
-    lines = src.split('\n')
+    lines = src.expandtabs(4).split('\n')
     longest = max(len(l) for l in lines) or 1
     pad = int(w * 0.04)
     avail_w, avail_h = w - 2 * pad, h - bar_h - 2 * pad
     sz = size or min(24, avail_w / 12700 / (longest * 0.62) / SCALE, avail_h / 12700 / (len(lines) * 1.45) / SCALE)
-    kw = re.compile(KW.get(lang, KW['python']))
     paras = []
-    for i, l in enumerate(lines, 1):
-        runs = []
+    for i, runs in enumerate(code_lines(src, lang, th), 1):
         hl = i in highlight
-        toks = re.split(r'(#.*$|//.*$|"[^"]*"|\'[^\']*\'|\b\d+\b|' + KW.get(lang, KW['python']) + r')', l)
-        for t in toks:
-            if not t:
-                continue
-            if t.startswith('#') or t.startswith('//'):
-                c = th.muted
-            elif t[0] in '"\'':
-                c = 'F2C46D'
-            elif re.fullmatch(r'\d+', t):
-                c = 'F78C6C'
-            elif kw.fullmatch(t):
-                c = th.accent2
-            else:
-                c = 'E6EDF3' if th.dark else '1F2328'
-            runs.append({'text': t, 'color': c, 'b': hl})
-        paras.append(runs or [{'text': ' ', 'color': th.text}])
+        paras.append([{'text': t, 'color': c, 'b': hl} for t, c in runs] or [{'text': ' ', 'color': th.text}])
     # highlighted lines get a band behind them
     line_pt = sz * 1.32
     lh = line_pt * SCALE * 12700
@@ -361,6 +415,47 @@ def code(prs, slide, th, box, src, lang='python', filename='main.py', highlight=
         band.name = '%s-hl-%d' % (name, i)
     textbox(slide, x + pad, y + bar_h + pad, avail_w, avail_h, paras, mono, sz, th.text, name=name + '-text', spacing=Pt(line_pt), autoshrink=False)
     return win
+
+
+def qr(prs, slide, th, box, url, label=None, name='qr', dark='0B1220'):
+    """Scannable QR code on a light rounded chip (dark modules on white, quiet zone kept), with an
+    optional label under it. Use only when the user gives a link or asks for one."""
+    try:
+        import qrcode
+    except ImportError:
+        raise RuntimeError('the qr kit needs the qrcode package: pip install qrcode')
+    x, y, w, h = box_emu(prs, box)
+    lab_h = int(h * 0.16) if label else 0
+    side = min(w, h - lab_h)
+    q_ = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, border=0)
+    q_.add_data(url)
+    q_.make(fit=True)
+    m = q_.get_matrix()
+    n, px, quiet = len(m), 16, 3
+    size = (n + 2 * quiet) * px
+    im = Image.new('RGB', (size, size), (255, 255, 255))
+    dr = ImageDraw.Draw(im)
+    col = tuple(int(dark[i:i + 2], 16) for i in (0, 2, 4))
+    for r, row in enumerate(m):
+        for c, v in enumerate(row):
+            if v:
+                dr.rectangle([(c + quiet) * px, (r + quiet) * px, (c + quiet + 1) * px - 1, (r + quiet + 1) * px - 1], fill=col)
+    buf = io.BytesIO()
+    im.save(buf, 'PNG')
+    buf.seek(0)
+    cx = x + (w - side) // 2
+    chip = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Emu(cx), Emu(y), Emu(side), Emu(side))
+    chip.adjustments[0] = 0.08
+    solid(chip.fill, 'FFFFFF')
+    line(chip, None)
+    chip.shadow.inherit = False
+    chip.name = name + '-chip'
+    inset = int(side * 0.04)
+    pic = slide.shapes.add_picture(buf, Emu(cx + inset), Emu(y + inset), Emu(side - 2 * inset), Emu(side - 2 * inset))
+    pic.name = name
+    if label:
+        textbox(slide, x, y + side + int(lab_h * 0.2), w, int(lab_h * 0.8), label, th.body, 14, th.text, align='c', name=name + '-label')
+    return pic
 
 
 def bullets(prs, slide, th, box, items, name='bullets', size=20, marker='accent-bar', numbered=False):

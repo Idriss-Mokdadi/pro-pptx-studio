@@ -6,10 +6,10 @@ A banner is always wider than tall. Prefer template mode (SKILL.md, Banners: bui
 const { Banner, SIZES } = require(SKILL_DIR + "/scripts/banner.js");
 await new Banner({
   style: "nebula", size: "linkedin-post", layout: "event",
-  kicker: "IEEE IES/PES ENET'Com SBJC", title: "ElectroSpark 2.0", subtitle: "Talks and a 6-hour hackathon",
-  details: [{ icon: "calendar", text: "12 Nov 2026" }, { icon: "map", text: "ENET'Com, Sfax" }],
-  cta: "Register now", logos: ["ieee.png"], obj: "high-voltage", handle: "@ieee.enetcom",
-}).save("out/electrospark-linkedin");   // → .pptx (editable), .png (exact pixels), .pdf
+  kicker: "Student Club", title: "Tech Day 2026", subtitle: "Talks and a 6-hour hackathon",
+  details: [{ icon: "calendar", text: "[date]" }, { icon: "map", text: "[venue]" }],
+  cta: "Register now", logos: ["logo.png"], obj: "high-voltage", handle: "@yourclub",
+}).save("out/techday-linkedin");   // → .pptx (editable), .png (exact pixels), .pdf
 ```
 
 ## Sizes (`size:`)
@@ -26,7 +26,7 @@ Pixel sizes follow Metricool's 2026 guide; platforms change them, so check befor
 - `event` — kicker, title, subtitle, detail rows with icons, CTA pill, logos
 - `webinar` — speaker `photo` in a ring, `speaker: { name, role }`, date/time details, CTA
 - `announcement` — big statement + subtitle
-- `achievement` — trophy (or `obj`), e.g. "1st place in Tunisia", event and team
+- `achievement` — trophy (or `obj`), e.g. "1st place, national round", event and team
 - `quote` — `title` is the quote text
 - `countdown` — `count: 3`, `unit: "days left"`
 - `profile` — LinkedIn profile banner: text starts at 30 % width to leave room for the profile photo

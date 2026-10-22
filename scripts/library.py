@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """Template library for pro-pptx-studio (MIT License).
 
-  python3 library.py index <folder-or-pptx>... --lib LIB [--source canva|slidescarnival|user] [--jobs 4]
-      Adds every new .pptx to the library: copies it, extracts its fonts, renders every slide,
-      analyses each slide (text slots, pictures, numbers) and guesses its role. Already indexed
-      files (same content) are skipped, so you can point it at a folder you keep adding to.
+  python3 library.py status --lib LIB [--templates DIR]
+      Fast check (file names only): templates not indexed yet, and index entries whose file is gone.
+  python3 library.py index <folder-or-pptx>... --lib LIB [--source canva|slidescarnival|user] [--jobs 4] [--index-only]
+      Adds every new .pptx to the library: copies it (or, with --index-only, reads it in place:
+      use this on the user's computer, where the templates folder sits next to the library),
+      extracts its fonts, renders every slide, analyses each slide (text slots, pictures, numbers)
+      and guesses its role. Already indexed files (same content) are skipped, so you can point it
+      at a folder you keep adding to.
   python3 library.py find "<topic words>" --lib LIB [--n 8] [--mode dark|light]
   python3 library.py show <id> --lib LIB              one line per slide: role, text slots
   python3 library.py sheet <id> --lib LIB             contact sheet with slide numbers (sheet.jpg)
@@ -186,7 +190,15 @@ def palette(pkg, parts, k=6):
     return [h for h, _ in c.most_common(k * 2)][:k]
 
 
-def index_one(path, lib, source, rating=None):
+def templates_dir(lib, given=None):
+    for d in [given, os.environ.get('PPS_TEMPLATES'), os.path.join(os.path.dirname(os.path.abspath(lib)), 'templates'),
+              os.path.join(os.path.dirname(os.path.abspath(lib)), 'Templates')]:
+        if d and os.path.isdir(d):
+            return d
+    return None
+
+
+def index_one(path, lib, source, rating=None, index_only=False):
     h = sha(path)
     name = os.path.splitext(os.path.basename(path))[0]
     tid = slug(name)
@@ -196,10 +208,13 @@ def index_one(path, lib, source, rating=None):
         d = os.path.join(lib, '%s-%d' % (tid, k)); k += 1
     tid = os.path.basename(d)
     os.makedirs(d, exist_ok=True)
-    shutil.copy(path, os.path.join(d, 'template.pptx'))
-    pkg = Pkg(os.path.join(d, 'template.pptx'))
+    src = os.path.abspath(path)
+    if not index_only:
+        src = os.path.join(d, 'template.pptx')
+        shutil.copy(path, src)
+    pkg = Pkg(src)
     faces = extract_fonts(pkg, os.path.join(d, 'fonts'))
-    thumbs = render(os.path.join(d, 'template.pptx'), os.path.join(d, 'fonts'), os.path.join(d, 'slides'))
+    thumbs = render(src, os.path.join(d, 'fonts'), os.path.join(d, 'slides'))
     W, H = pkg.size()
     parts = pkg.slides()
     slides = [analyse_slide(pkg, p, i + 1, len(parts), W, H) for i, p in enumerate(parts)]
@@ -212,7 +227,7 @@ def index_one(path, lib, source, rating=None):
     if source == 'auto':
         source = 'slidescarnival' if SC_NAMES.search(name) else 'canva'
     meta = {
-        'id': tid, 'name': name, 'sha': h, 'source': source, 'file': 'template.pptx', 'source_file': os.path.basename(path), 'size_emu': [W, H],
+        'id': tid, 'name': name, 'sha': h, 'source': source, 'file': None if index_only else 'template.pptx', 'source_file': os.path.basename(path), 'size_emu': [W, H],
         'aspect': round(W / H, 3), 'slides_count': len(parts), 'fonts_used': used_faces, 'fonts_embedded': faces,
         'palette': palette(pkg, parts), 'accent_hue': round(hue * 360) if hue is not None else None,
         'mode': ('dark' if brightness(thumbs[0]) < 0.45 else 'light') if thumbs else None,
@@ -259,7 +274,7 @@ def cmd_index(a):
     todo = [f for f in files if sha(f) not in known]
     print(json.dumps({'found': len(files), 'new': len(todo)}))
     with cf.ThreadPoolExecutor(a.jobs) as ex:
-        futs = {ex.submit(index_one, f, a.lib, a.source): f for f in todo}
+        futs = {ex.submit(index_one, f, a.lib, a.source, None, a.index_only): f for f in todo}
         for fu in cf.as_completed(futs):
             try:
                 tid, meta = fu.result()
@@ -269,6 +284,17 @@ def cmd_index(a):
                 save_index(a.lib, idx)
             except Exception as e:
                 print(json.dumps({'failed': futs[fu], 'error': repr(e)}))
+
+
+def cmd_status(a):
+    idx = load_index(a.lib)
+    tdir = templates_dir(a.lib, a.templates)
+    files = sorted(f for f in os.listdir(tdir) if f.lower().endswith('.pptx')) if tdir else []
+    known = {t.get('source_file') for t in idx['templates'].values()}
+    print(json.dumps({'templates_dir': tdir, 'indexed': len(idx['templates']), 'files': len(files),
+                      'new': [f for f in files if f not in known],
+                      'missing': sorted(t['id'] for t in idx['templates'].values() if t.get('source_file') not in set(files)
+                                        and not os.path.exists(os.path.join(a.lib, t['id'], 'template.pptx')))}, ensure_ascii=False))
 
 
 def cmd_find(a):
@@ -448,7 +474,8 @@ def cmd_set(a):
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest='cmd', required=True)
-    s = sub.add_parser('index'); s.add_argument('paths', nargs='+'); s.add_argument('--lib', required=True); s.add_argument('--source', default='auto'); s.add_argument('--jobs', type=int, default=3)
+    s = sub.add_parser('index'); s.add_argument('paths', nargs='+'); s.add_argument('--lib', required=True); s.add_argument('--source', default='auto'); s.add_argument('--jobs', type=int, default=3); s.add_argument('--index-only', action='store_true')
+    s = sub.add_parser('status'); s.add_argument('--lib', required=True); s.add_argument('--templates')
     s = sub.add_parser('find'); s.add_argument('topic'); s.add_argument('--lib', required=True); s.add_argument('--n', type=int, default=8); s.add_argument('--mode')
     s = sub.add_parser('show'); s.add_argument('id'); s.add_argument('--lib', required=True)
     s = sub.add_parser('sheet'); s.add_argument('id'); s.add_argument('--lib', required=True)
@@ -457,7 +484,7 @@ def main():
     s = sub.add_parser('assets'); s.add_argument('id'); s.add_argument('--lib', required=True); s.add_argument('--slide', type=int); s.add_argument('--out', required=True)
     s = sub.add_parser('set'); s.add_argument('id'); s.add_argument('--lib', required=True); s.add_argument('--rating'); s.add_argument('--tags'); s.add_argument('--roles'); s.add_argument('--notes')
     a = ap.parse_args()
-    {'index': cmd_index, 'find': cmd_find, 'show': cmd_show, 'sheet': cmd_sheet, 'covers': cmd_covers, 'set': cmd_set, 'rerender': cmd_rerender, 'assets': cmd_assets}[a.cmd](a)
+    {'index': cmd_index, 'status': cmd_status, 'find': cmd_find, 'show': cmd_show, 'sheet': cmd_sheet, 'covers': cmd_covers, 'set': cmd_set, 'rerender': cmd_rerender, 'assets': cmd_assets}[a.cmd](a)
 
 
 if __name__ == '__main__':

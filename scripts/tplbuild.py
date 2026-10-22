@@ -153,6 +153,12 @@ TITLE_FRACTION = 0.035   # text at least this share of the slide width (in pt) i
 def build(spec):
     lib = Lib(lib_path(spec))
     base = spec['base']
+    lang = spec.get('lang', 'en')
+    # word groups on one line ("Sprint 1", "10 Aug", "5 GHz"); French spacing before ? ! ; : when lang is fr
+    spec = dict(spec, replace={k: T.typography(v, lang) for k, v in spec.get('replace', {}).items()},
+                slides=[dict(s_, text=T.typography_obj(s_.get('text', {}), lang),
+                             add=[a_ if a_.get('kit') in ('code', 'qr') else T.typography_obj(a_, lang) for a_ in s_.get('add', [])])
+                        for s_ in spec['slides']])
     out = os.path.abspath(spec['out'])
     tmpdir = tempfile.mkdtemp(prefix='tplb_')
     report = {'out': out, 'warnings': [], 'fits': []}
@@ -371,6 +377,22 @@ def build(spec):
                 f['size_pt'] = m
         if headlines.get(part):
             dst.touch(part)
+    # one line per slide for tplpolish (Morph names) and tplcheck (rules): template role, title shape, backup flag
+    info = []
+    for i, (s, tid) in enumerate(zip(spec['slides'], slide_src), 1):
+        _, n = parse_ref(s['use'], base)
+        ms = lib.m(tid)['slides'][n - 1]
+        heads = [f for f in report['fits'] if f.get('slide') == i and f.get('template_pt') and f.get('id')]
+        title = None
+        if s.get('title_shapes'):
+            sh = P.find_shape(dst.xml(new_parts[i - 1]), s['title_shapes'][0])
+            title = '#' + P.shape_id(sh) if sh is not None else s['title_shapes'][0]   # a kit shape: by name
+        elif heads:
+            title = max(heads, key=lambda f: f['template_pt'])['id']
+        info.append({'slide': i, 'use': '%s#%d' % (tid, n), 'role': s.get('role') or ms.get('role_override') or ms['role'],
+                     'title': title, 'backup': bool(s.get('backup'))})
+    report['slides_info'] = info
+    report['lang'] = lang
     th = theme_from(lib.m(base), dst, new_parts, {} if role_fonts else font_map, spec.get('theme'))
     if role_fonts:
         th['display'], th['body'] = role_fonts
@@ -393,6 +415,8 @@ def build(spec):
             fn = getattr(K, kind)
             if kind in ('image', 'depth', 'mockup'):
                 a.setdefault('tmpdir', tmpdir)
+            if kind == 'text' and a.get('role') == 'title' and not report['slides_info'][i - 1]['title']:
+                report['slides_info'][i - 1]['title'] = nm      # a title drawn with the kit (canvas slides)
             try:
                 fn(prs, slide, theme, box, name=nm, **a)
             except Exception as e:

@@ -1,10 +1,10 @@
 {
  "lib": "LIB",
  "base": "azure-and-white-modern-cyber-security",
- "out": "./Cybersecurity-v3-showcase.pptx",
+ "out": "./cyber-showcase.pptx",
  "fonts": {"theme": "cyber:1"},
  "motion": "auto",
- "replace": {"Cloudlet Systems": "IEEE IES/PES ENET'Com SBJC", "November 2035": "2026"},
+ "replace": {"Cloudlet Systems": "Organization Name", "November 2035": "2026"},
  "slides": [
   {"use": "#1", "text": {"TextBox 14": "CYBER SECURITY", "TextBox 15": "Attacks and How to Stop Them", "TextBox 9": "Awareness talk", "TextBox 16": "01"},
    "notes": "Welcome everyone. In the next minutes we follow one attack from the first email to the ransom note, and show where each step can be stopped."},

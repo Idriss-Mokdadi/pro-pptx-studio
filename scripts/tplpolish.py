@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tplpolish.py - finishing pass after tplbuild.py (MIT). Usage: python3 tplpolish.py spec.json
 Reads spec["out"], its .report.json theme, and spec["polish"]; boxes are slide fractions [x, y, w, h]."""
-import copy, json, re, sys
+import copy, json, os, re, sys
 from PIL import Image
 from pptx import Presentation
 from pptx.util import Emu, Pt
@@ -24,7 +24,13 @@ if sys.argv[1] == '--icons':      # python3 tplpolish.py --icons screenshot.png 
 spec = json.load(open(sys.argv[1]))
 P = spec.get('polish', {})
 out = spec['out']
-th = json.load(open(out.rsplit('.', 1)[0] + '.report.json')).get('theme', {})
+REPORT = json.load(open(out.rsplit('.', 1)[0] + '.report.json'))
+th = REPORT.get('theme', {})
+INFO = REPORT.get('slides_info', [])
+LANG = spec.get('lang', REPORT.get('lang', 'en'))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from tplkit.text import typography_obj  # noqa: E402
+P = typography_obj(P, LANG, skip=('slide', 'shape', 'shapes', 'files', 'icon', 'name', 'box', 'from', 'to', 'via', 'theme', 'numbers', 'canvas', 'font', 'color'))
 TH = {'display': th.get('display', 'Inter'), 'body': th.get('body', 'Inter'), 'mono': th.get('mono', 'JetBrains Mono'),
       'text': th.get('text', 'FFFFFF'), 'muted': th.get('muted', 'A9B4C8'),
       'accent': th.get('accent', '115BB7'), 'accent2': th.get('accent2', '0BBDDC'), 'dark': th.get('dark', True)}
@@ -37,7 +43,14 @@ AL = {'l': PP_ALIGN.LEFT, 'c': PP_ALIGN.CENTER, 'r': PP_ALIGN.RIGHT}
 def X(f): return Emu(int(f * W))
 def Y(f): return Emu(int(f * H))
 def S(n): return prs.slides[n - 1]
-def find(sl, name): return next(s for s in sl.shapes if s.name == name)
+def base(name): return name[2:] if name.startswith('!!') else name   # '!!' = Morph name added by this script
+
+
+def find(sl, name):
+    """A shape by its name (with or without the Morph '!!' prefix) or by '#id'."""
+    if name.startswith('#'):
+        return next(s for s in sl.shapes if str(s.shape_id) == name[1:])
+    return next(s for s in sl.shapes if base(s.name) == base(name))
 
 
 def no_autofit(tf):
@@ -273,7 +286,7 @@ def style_chart(sl, sh, c):
 for op in P.get('remove', []):
     sl = S(op['slide'])
     for nm in op['shapes']:
-        sh = next((s for s in sl.shapes if s.name == nm), None)
+        sh = next((s for s in sl.shapes if base(s.name) == base(nm)), None)
         if sh is None:
             print(f'warning: remove: no shape {nm!r} on slide {op["slide"]}', file=sys.stderr)
             continue
@@ -324,14 +337,20 @@ N = P.get('numbers', {})         # slide numbers: on by default, counting starts
 if N is not False:
     first, n0, skip = N.get('start_slide', 2), N.get('start_at', 1), set(N.get('skip', []))
     bx = N.get('box', [0.925, 0.925, 0.055, 0.045])
-    total = len(prs.slides) - first + n0
+    backup = {i for i, s_ in enumerate(spec.get('slides', []), 1) if s_.get('backup')}   # appendix after the closing: A1, A2...
+    total = len(prs.slides) - len(backup) - first + n0
+
+    def label(i):
+        if i in backup:
+            return N.get('backup_format', 'A{k}').format(k=sorted(backup).index(i) + 1)
+        return str(i - first + n0)
 
     def own_number(s):              # the template's own page number: reuse it instead of adding a second one
-        if s.name == 'slide-number-tpl':
+        if base(s.name) == 'slide-number-tpl':
             return True
         if s.is_placeholder and s.placeholder_format.type is not None and int(s.placeholder_format.type) == 13:
             return True
-        if not s.has_text_frame or s.name.startswith(('card-', 'kpi', 'node-', 'logo', 'chart', 'slide-number')):
+        if not s.has_text_frame or base(s.name).startswith(('card-', 'kpi', 'node-', 'logo', 'chart', 'slide-number', 'title')):
             return False
         if s._element.findall('.//' + qn('a:fld')) and any(x.get('type') == 'slidenum' for x in s._element.iter(qn('a:fld'))):
             return True
@@ -367,10 +386,10 @@ if N is not False:
         t0 = proto.text_frame.text.strip()
         pad = len(t0) if t0.startswith('0') and len(t0) > 1 else int(N.get('pad', 0))
     for i, sl in enumerate(prs.slides, 1):
-        for sh in [s for s in sl.shapes if s.name == 'slide-number']:
+        for sh in [s for s in sl.shapes if base(s.name) == 'slide-number']:
             sh._element.getparent().remove(sh._element)
         numbered = i >= first and i not in skip
-        value = str(i - first + n0).zfill(pad) if numbered else ''
+        value = (label(i) if i in backup else label(i).zfill(pad)) if numbered else ''
         if proto is not None:                     # template style: rewrite its numbers, copy one where missing
             if not found[i] and numbered:
                 el = copy.deepcopy(proto._element)
@@ -387,7 +406,7 @@ if N is not False:
                 sx, sy, sw, shh = s.left / W, s.top / H, s.width / W, s.height / H
                 if sx < b[0] + b[2] and sx + sw > b[0] and sy < b[1] + b[3] and sy + shh > b[1]:
                     b[1] = sy - b[3] - 0.01
-        text(sl, b, N.get('format', '{n}').format(n=i - first + n0, total=total),
+        text(sl, b, label(i) if i in backup else N.get('format', '{n}').format(n=label(i), total=total),
              N.get('size', 18), N.get('color', 'text'), N.get('font', 'display'), N.get('bold', True), 'r', 'm', name='slide-number')
 C = P.get('canvas')               # banners: crop the 16:9 slide to a wide strip after the layout is placed
 if C:
@@ -402,5 +421,21 @@ if C:
         for sh in sl.shapes:
             sh.left, sh.top = sh.left - dx, sh.top - dy
     prs.slide_width, prs.slide_height = newW, newH
+if spec.get('motion', 'auto') != 'none' and spec.get('transition', 'morph') == 'morph' and P.get('morph_names', True):
+    # Morph pairs objects that share a '!!' name on consecutive slides: the title, the slide number and
+    # the logos glide from one slide to the next instead of fading. Other shapes keep their names, so
+    # templates designed with their own Morph keep working.
+    for i, sl in enumerate(prs.slides, 1):
+        inf = next((x for x in INFO if x.get('slide') == i), {})
+        tref = inf.get('title') or ''
+        for s in sl.shapes:
+            b = base(s.name)
+            if tref and ((tref.startswith('#') and str(s.shape_id) == tref[1:]) or (not tref.startswith('#') and b == tref)):
+                s.name = '!!title'
+            elif b in ('slide-number', 'slide-number-tpl', 'logos'):
+                s.name = '!!' + b
+        logos = sorted([s for s in sl.shapes if base(s.name).startswith('logos-logo')], key=lambda s: s.left)
+        for k, s in enumerate(logos, 1):
+            s.name = '!!logos-logo-%d' % k
 prs.save(out)
 print(json.dumps({'polished': out, 'ops': {k: len(v) for k, v in P.items() if isinstance(v, list)}}))

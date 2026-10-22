@@ -10,24 +10,24 @@
   {
    "use": "#1",
    "text": {
-    "TextBox 13": "SENTINEL",
-    "TextBox 12": "CORE 5G",
-    "TextBox 22": "ENET'COM · 2026",
+    "TextBox 13": "PROJECT",
+    "TextBox 12": "TITLE",
+    "TextBox 22": "UNIVERSITY · 2026",
     "TextBox 23": "CONTEXT",
     "TextBox 24": "SOLUTION",
     "TextBox 25": "RESULTS",
     "TextBox 26": "DEMO",
-    "TextBox 27": "AI SECURITY · 5G CORE"
+    "TextBox 27": "EDGE AI · NETWORKS"
    },
    "add": [
     {
      "kit": "depth",
      "cutout": "./cutouts/futuristic-engineering-c-01.png",
      "box": [
-      0.735,
-      0.4,
-      0.14,
-      0.5
+      0.59,
+      0.44,
+      0.13,
+      0.4
      ],
      "glow": true
     }

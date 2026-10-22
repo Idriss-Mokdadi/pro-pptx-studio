@@ -1,7 +1,7 @@
 // deckkit.js v2 — style-driven, animated, font-embedded PowerPoint decks on pptxgenjs. MIT License.
 //
 //   const { Deck } = require("<skill>/scripts/deckkit.js");
-//   const deck = new Deck({ style: "nebula", title: "SentinelCore 5G", footer: "SentinelCore 5G · PFA 2026", lang: "fr" });
+//   const deck = new Deck({ style: "nebula", title: "Project Title", footer: "Project Title · 2026", lang: "fr" });
 //   deck.cover({...}).agenda({...}).section({...}).cards({...}) ... ;
 //   await deck.save("deck.pptx");
 //

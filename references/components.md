@@ -6,10 +6,10 @@ const deck = new Deck({
   style: "nebula",            // a style id (node scripts/styles.js list) or a path to a style .json
   motion: "subtle",           // none | subtle | lively | click
   lang: "fr",                 // en | fr — default labels (Sommaire, Partie, Merci…)
-  title: "SentinelCore 5G",   // file metadata; also used to pick the 3D hero object
-  topic: "5g security ai",    // optional, helps pick the hero object
-  footer: "SentinelCore 5G · PFA 2026",
-  logos: ["ieee.png", "enetcom.png"],   // cover logo row; footer row in styles whose chrome.footer is "logos"
+  title: "Project Title",     // file metadata; also used to pick the 3D hero object
+  topic: "network security ai",    // optional, helps pick the hero object
+  footer: "Project Title · 2026",
+  logos: ["school.png", "company.png"],   // cover logo row; footer row in styles whose chrome.footer is "logos"
   hero: "shield",             // optional 3D object for cover/section/closing (assets/3d/index.json)
   colors: { primary: "…" },   // optional brand override of any style color
   embedFonts: true,           // default: the deck carries its fonts (EOT, like Canva exports)

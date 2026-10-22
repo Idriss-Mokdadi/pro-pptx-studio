@@ -486,7 +486,7 @@ def fit_title(slide_x, key, slot, slide_size, max_lines=4, grow=True, min_ratio=
     rpr0 = run0.find(q('a:rPr'))
     face, _sz_now, bold, spc, caps = run_style(rpr0)
     s0 = slot['size']
-    text = ' '.join(para_text(p).split())
+    text = ' '.join(re.split(r'[ \t\n\r]+', para_text(p).strip()))   # keeps non-breaking spaces (word groups)
     words = text.split(' ')
     b = shape_box(shape)
     l, t, r, bi, anchor = _insets(shape)
@@ -604,3 +604,44 @@ def set_size(slide_x, key, size_pt):
     for sp in shape.iter(q('a:spcPts')):
         if sp.getparent().tag == q('a:lnSpc') and old:
             sp.set('val', str(int(int(sp.get('val')) * size_pt * 100 / old)))
+
+
+# ---------- typography: keep word groups together, French spacing ----------
+NB = ' '
+_GROUP = re.compile(r'(?i)\b(sprint|phase|step|stage|part|chapter|week|day|level|version|release|module|task|lot|figure|fig\.|table|slide|section|'
+                    r'article|art\.|n°|no\.|étape|partie|chapitre|semaine|jour|niveau|tâche|tableau|annexe|appendix|v)[ ]+(\d+[a-z]?)\b')
+_PERIOD = re.compile(r'\b([QHST][1-4])[ ]+(20\d\d)\b')
+_UNIT = re.compile(r'(\d)[ ]+(%|‰|°C|°F|°|[µnm]?s|min|h|[kMGT]?B|[kMG]?b(?:ps|it/s)?|[kMGT]?Hz|[kMG]?Wh?|[km]?V|m?A|dB[mi]?|[kcmn]?m|kg|g|€|\$|DT|TND|USD|EUR|px|pt|x)(?=[\s,.;:!?)/]|$)')
+_MONTH = re.compile(r'(?i)\b(\d{1,2})[ ]+(jan(?:uary|v\.?|vier)?|feb(?:ruary)?|févr?\.?|février|mar(?:ch|s)?|apr(?:il)?|avr\.?|avril|may|mai|'
+                    r'june?|juin|july?|juil\.?|juillet|aug(?:ust)?|août|sep(?:t\.?|tember|tembre)?|oct(?:ober|obre|\.)?|nov(?:ember|embre|\.)?|'
+                    r'dec(?:ember)?|déc\.?|décembre)\b')
+_FR_PUNCT = re.compile(r'(?<=[\w%)\]»"’])[   ]?([?!;:])(?=\s|$|[?!])')
+_FR_THOUSANDS = re.compile(r'(?<=\d)[ ](?=\d{3}\b)')
+
+
+def typography(s, lang='en'):
+    """Non-breaking spaces inside word groups that must stay on one line ("Sprint 1", "10 Aug",
+    "5 GHz", "Q3 2026") and, for French, before ? ! ; : and inside « » (typographie française)."""
+    if not isinstance(s, str) or not s.strip():
+        return s
+    s = _GROUP.sub(lambda m: m.group(1) + NB + m.group(2), s)
+    s = _PERIOD.sub(lambda m: m.group(1) + NB + m.group(2), s)
+    s = _UNIT.sub(lambda m: m.group(1) + NB + m.group(2), s)
+    s = _MONTH.sub(lambda m: m.group(1) + NB + m.group(2), s)
+    if (lang or 'en').lower().startswith('fr') and '://' not in s:
+        s = _FR_PUNCT.sub(lambda m: NB + m.group(1), s)
+        s = re.sub(r'«[  ]?', '«' + NB, s)
+        s = re.sub(r'[  ]?»', NB + '»', s)
+        s = _FR_THOUSANDS.sub(NB, s)
+    return s
+
+
+def typography_obj(obj, lang='en', skip=('src', 'merge', 'fit', 'keep', 'shapes', 'path', 'screenshot', 'cutout', 'icon', 'files', 'url', 'filename', 'number_format', 'kind', 'lang', 'name', 'kit')):
+    """typography() on every string of a spec value (text slots, kit items), leaving code, paths and options alone."""
+    if isinstance(obj, str):
+        return typography(obj, lang)
+    if isinstance(obj, list):
+        return [typography_obj(v, lang, skip) for v in obj]
+    if isinstance(obj, dict):
+        return {k: (v if k in skip else typography_obj(v, lang, skip)) for k, v in obj.items()}
+    return obj

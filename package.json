@@ -1,6 +1,6 @@
 {
   "name": "pro-pptx-studio",
-  "version": "5.0.0",
+  "version": "6.0.0",
   "description": "Agent skill for Claude: designer-quality PowerPoint decks built on your own templates, plus a 59-style generator and banners",
   "license": "MIT",
   "author": "Mohamed Idriss Mokdadi",
